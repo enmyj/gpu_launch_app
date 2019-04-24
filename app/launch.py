@@ -21,6 +21,7 @@ import hashlib
 import logging
 import os
 import pwd
+import pam
 
 import dateutil.parser
 import docker
@@ -288,20 +289,20 @@ def launch(username, imagetype=None, jupyter_pwd=None, num_gpus=0, **kwargs):
     if not launchable:
         return _error(msg)
 
-    # check for user name and add that as the `user` value if it exists
-    try:
+    # validate linux username/password
+    # prevents users from launching all their containters as "astewart"
+    if pam.authenticate(username, password) == False:
+        msg = """
+            Incorrect username or password. Or user was not configured properly
+            Try username/password again. If error persists, contact admins
+        """
+        return _error(ms)
+    else:
+        # add the username as an environment variable. for shits and gigs,
+        # but also because it helps us build our webapp down the line
         p = pwd.getpwnam(username)
         imagedict['user'] = '{p.pw_uid}:{p.pw_gid}'.format(p=p)
-
-        # add the user's name as an environment variable. for shits and gigs,
-        # but also because it helps us build our webapp down the line
         _update_environment(imagedict, 'USER', username)
-    except KeyError:
-        msg = "user '{}' does not exist on this system; contact administrators"
-        msg = msg.format(username)
-        return _error(msg)
-    except Exception as e:
-        return _error("unhandled error getting user name info: {}".format(e))
 
     # verify that this user has a home directory on the base server (will be
     # used in mounting step)
@@ -355,6 +356,7 @@ def launch(username, imagetype=None, jupyter_pwd=None, num_gpus=0, **kwargs):
             '/etc/group': {'bind': '/etc/group', 'mode': 'ro'},
             '/etc/passwd': {'bind': '/etc/passwd', 'mode': 'ro'},
             '/etc/skel': {'bind': '/etc/skel', 'mode': 'ro'},
+            '/etc/shadow': {'bind': '/etc/shadow/', 'mode': 'ro'},
             '/data': {'bind': '/data', 'mode': 'rw'},
         }
     }
@@ -427,24 +429,21 @@ def kill(docker_id):
 # ----------------------------- #
 #   Command line                #
 # ----------------------------- #
-
+#%%
 def parse_args():
     parser = argparse.ArgumentParser()
 
-    username = "user name (must be a created user on the gpu box)"
+    username = "username (must be a created user on the gpu box). Will be requested if not passed"
     parser.add_argument("-u", "--username", help=username)
+
+    password = "password on gpu box. Do not pass if running from command line. Will be requsted if not passed"
+    parser.add_argument('-p','--password', help = password)
 
     imagetype = "type of image to launch"
     parser.add_argument(
         "-t", "--imagetype", help=imagetype, choices=ERI_IMAGES.keys(),
         default='Python'
     )
-
-    jupyter_pwd = (
-        "jupyter password (only required for environments which have jupyter"
-        " notebook services running in them)"
-    )
-    parser.add_argument("-p", "--jupyterpwd", help=jupyter_pwd)
 
     num_gpus = "number of gpus to be attached to container"
     parser.add_argument("-g", "--numgpus", help=num_gpus, default=0)
@@ -454,9 +453,15 @@ def parse_args():
 
 if __name__ == '__main__':
     args = parse_args()
+    if not args.username:
+        args.username = input('username: ')
+    if not args.password:
+        args.password = getpass.getpass()
+
     launch(
         username=args.username,
+        password=args.password,
         imagetype=args.imagetype,
-        jupyter_pwd=args.jupyterpwd,
-	num_gpus=args.numgpus
+	    num_gpus=args.numgpus
     )
+
