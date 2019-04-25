@@ -22,6 +22,7 @@ import logging
 import os
 import pwd
 import pam
+import getpass
 
 import dateutil.parser
 import docker
@@ -292,7 +293,7 @@ def launch(username, imagetype=None, password=None, num_gpus=0, **kwargs):
     # validate linux username/password
     # prevents users from launching containters as "astewart"
     if not pam.authenticate(username, password):
-        msg = ("Incorrect username or password. Or user was not configured properly",
+        msg = ("Incorrect username or password. Or user was not configured properly "
                "Try username/password again. If error persists, contact admins")
         return _error(msg)
     else:
@@ -431,11 +432,11 @@ def kill(docker_id):
 def parse_args():
     parser = argparse.ArgumentParser()
 
-    username = ("username (must be a created user on the gpu box).",
+    username = ("username (must be a created user on the gpu box). "
                 "Will be requested if not passed")
     parser.add_argument("-u", "--username", help=username)
 
-    password = ("password on gpu box. DO NOT PASS if running from command line.",
+    password = ("password on gpu box. DO NOT PASS if running from command line. "
                 "Will be requsted if not passed")
     parser.add_argument('-p','--password', help = password)
 
