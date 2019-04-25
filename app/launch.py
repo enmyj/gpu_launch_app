@@ -28,6 +28,7 @@ import docker
 import notebook.auth
 import psutil
 import pytz
+from notebook.auth import passwd
 
 # ----------------------------- #
 #   Module Constants            #
@@ -225,12 +226,11 @@ def _update_environment(imagedict, key, val):
     imagedict['environment'] = env
 
 
-def _setup_jupyter_password(imagedict, jupyter_pwd=None):
+def _setup_jupyter_password(imagedict, password):
     print('user = {}'.format(imagedict['environment']['USER']))
-    print('jupyter_pwd = {}'.format(jupyter_pwd))
-    if jupyter_pwd in [None, '']:
-        msg = "you must provide a password for the jupyter notebook service"
-        return False, msg
+
+    # hash the linux password using notebook.auth.passwd()
+    jupyter_pwd = passwd(password)
 
     # the neighboring jupyter_notebook_config.py file will look for an
     # environment variable PASSWORD, so we need to set that in our container
@@ -255,14 +255,14 @@ def _find_open_port(start=8890, stop=9000):
     )
 
 
-def launch(username, imagetype=None, jupyter_pwd=None, num_gpus=0, **kwargs):
+def launch(username, imagetype=None, password=None, num_gpus=0, **kwargs):
     """launch a docker container for user `username` of type `imagetype`
 
     args:
         username (str): linux user name, used for mounting home directories
+        password (str): linux password
         imagetype (str): module-specific enumeration of available images
             (default: 'single_gpu', which points to docker image `eri_dev:latest`)
-        jupyter_pwd (str): password for jupyter notebook signin
         num_gpus (int): number of gpus to assign to container
         kwargs (dict): all other keyword args are passed to the
             `client.containers.run` function
@@ -290,13 +290,11 @@ def launch(username, imagetype=None, jupyter_pwd=None, num_gpus=0, **kwargs):
         return _error(msg)
 
     # validate linux username/password
-    # prevents users from launching all their containters as "astewart"
-    if pam.authenticate(username, password) == False:
-        msg = """
-            Incorrect username or password. Or user was not configured properly
-            Try username/password again. If error persists, contact admins
-        """
-        return _error(ms)
+    # prevents users from launching containters as "astewart"
+    if not pam.authenticate(username, password):
+        msg = ("Incorrect username or password. Or user was not configured properly",
+               "Try username/password again. If error persists, contact admins")
+        return _error(msg)
     else:
         # add the username as an environment variable. for shits and gigs,
         # but also because it helps us build our webapp down the line
@@ -323,7 +321,7 @@ def launch(username, imagetype=None, jupyter_pwd=None, num_gpus=0, **kwargs):
     # take care of some of the jupyter notebook specific steps
     if imagetype in JUPYTER_IMAGES:
         # configure the jupyter notebook password
-        success, msg = _setup_jupyter_password(imagedict, jupyter_pwd)
+        success, msg = _setup_jupyter_password(imagedict, password)
         if not success:
             return _error(msg)
 
@@ -355,8 +353,8 @@ def launch(username, imagetype=None, jupyter_pwd=None, num_gpus=0, **kwargs):
             user_home: {'bind': user_home, 'mode': 'rw'},
             '/etc/group': {'bind': '/etc/group', 'mode': 'ro'},
             '/etc/passwd': {'bind': '/etc/passwd', 'mode': 'ro'},
-            '/etc/skel': {'bind': '/etc/skel', 'mode': 'ro'},
             '/etc/shadow': {'bind': '/etc/shadow/', 'mode': 'ro'},
+            '/etc/skel': {'bind': '/etc/skel', 'mode': 'ro'},
             '/data': {'bind': '/data', 'mode': 'rw'},
         }
     }
@@ -433,10 +431,12 @@ def kill(docker_id):
 def parse_args():
     parser = argparse.ArgumentParser()
 
-    username = "username (must be a created user on the gpu box). Will be requested if not passed"
+    username = ("username (must be a created user on the gpu box).",
+                "Will be requested if not passed")
     parser.add_argument("-u", "--username", help=username)
 
-    password = "password on gpu box. Do not pass if running from command line. Will be requsted if not passed"
+    password = ("password on gpu box. DO NOT PASS if running from command line.",
+                "Will be requsted if not passed")
     parser.add_argument('-p','--password', help = password)
 
     imagetype = "type of image to launch"
@@ -453,6 +453,8 @@ def parse_args():
 
 if __name__ == '__main__':
     args = parse_args()
+
+    # request username and password if not passed
     if not args.username:
         args.username = input('username: ')
     if not args.password:
