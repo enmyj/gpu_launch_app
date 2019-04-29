@@ -41,13 +41,13 @@ INSTALLED_DEVICES = set(['0', '1', '2', '3'])
 
 ERI_IMAGES = {
     'Python': {
-        'image': 'eri_dev:latest',
+        'image': 'eri_dev:{tag}',
         'auto_remove': True,
         'detach': True,
         'ports': {8888: 'auto'}
     },
     'Python+R': {
-        'image': 'eri_dev_p_r:latest',
+        'image': 'eri_dev_p_r:{tag}',
         'auto_remove': True,
         'detach': True,
         'ports': {8888: 'auto', 8787: 'auto'}
@@ -141,9 +141,8 @@ def active_eri_images(client=None, ignore_other_images=False):
         }
 
         if imagetype in JUPYTER_IMAGES + R_IMAGES:
-            # we set a password value to launch this image; go get it
-            pw = _env_lookup(c, 'PASSWORD')
-            d['pwhash'] = hashlib.md5(pw.encode()).hexdigest()
+            # we set a hashed password value to launch this image; go get it
+            d['pwhash'] = _env_lookup(c, 'PASSWORD')
 
         if imagetype in JUPYTER_IMAGES:
             # go get the actual mapped port (dynamically allocated for non-gpu
@@ -256,14 +255,15 @@ def _find_open_port(start=8890, stop=9000):
     )
 
 
-def launch(username, imagetype=None, password=None, num_gpus=0, **kwargs):
+def launch(username, password=None, imagetype=None, imagetag=None, num_gpus=0, **kwargs):
     """launch a docker container for user `username` of type `imagetype`
 
     args:
         username (str): linux user name, used for mounting home directories
         password (str): linux password
         imagetype (str): module-specific enumeration of available images
-            (default: 'single_gpu', which points to docker image `eri_dev:latest`)
+            (default: 'Python', which points to docker image `eri_dev`)
+        imagetag (str): the docker tag of the image to laucnh (default: 'latest')
         num_gpus (int): number of gpus to assign to container
         kwargs (dict): all other keyword args are passed to the
             `client.containers.run` function
@@ -318,6 +318,9 @@ def launch(username, imagetype=None, password=None, num_gpus=0, **kwargs):
 
     # add image type to container labels
     imagedict['labels'] = {'image_type': imagetype}
+    
+    # add image tag
+    imagedict['image'] = imagedict['image'].format(tag=imagetag)
 
     # take care of some of the jupyter notebook specific steps
     if imagetype in JUPYTER_IMAGES:
@@ -446,6 +449,10 @@ def parse_args():
         default='Python'
     )
 
+    imagetag = 'tag of docker image to launch (default = "latest")'
+    parser.add_argument(
+            "--imagetag", help=imagetag, default = 'latest')
+
     num_gpus = "number of gpus to be attached to container"
     parser.add_argument("-g", "--numgpus", help=num_gpus, default=0)
 
@@ -465,6 +472,7 @@ if __name__ == '__main__':
         username=args.username,
         password=args.password,
         imagetype=args.imagetype,
-	    num_gpus=args.numgpus
+        imagetag=args.imagetag,
+        num_gpus=args.numgpus
     )
 
