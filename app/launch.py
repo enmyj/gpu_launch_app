@@ -225,20 +225,6 @@ def _update_environment(imagedict, key, val):
         env.append('{}={}'.format(key, val))
     imagedict['environment'] = env
 
-
-def _setup_jupyter_password(imagedict, password):
-    print('user = {}'.format(imagedict['environment']['USER']))
-
-    # hash the linux password using notebook.auth.passwd()
-    jupyter_pwd = passwd(password)
-
-    # the neighboring jupyter_notebook_config.py file will look for an
-    # environment variable PASSWORD, so we need to set that in our container
-    _update_environment(imagedict, 'PASSWORD', jupyter_pwd)
-
-    return True, None
-
-
 def _find_open_port(start=8890, stop=9000):
     used_ports = {
         connection.laddr.port
@@ -324,10 +310,10 @@ def launch(username, password=None, imagetype=None, imagetag=None, num_gpus=0, *
 
     # take care of some of the jupyter notebook specific steps
     if imagetype in JUPYTER_IMAGES:
-        # configure the jupyter notebook password
-        success, msg = _setup_jupyter_password(imagedict, password)
-        if not success:
-            return _error(msg)
+        # hash the linux password using notebook.auth.passwd()
+        # the neighboring jupyter_notebook_config.py file will look for an
+        # environment variable PASSWORD, so we need to set that in our container
+        _update_environment(imagedict, 'PASSWORD', passwd(password))
 
         # update ports dictionary for this instance if this is an auto
         if imagedict['ports'][8888] == 'auto':
@@ -357,7 +343,6 @@ def launch(username, password=None, imagetype=None, imagetag=None, num_gpus=0, *
             user_home: {'bind': user_home, 'mode': 'rw'},
             '/etc/group': {'bind': '/etc/group', 'mode': 'ro'},
             '/etc/passwd': {'bind': '/etc/passwd', 'mode': 'ro'},
-            '/etc/shadow': {'bind': '/etc/shadow/', 'mode': 'ro'},
             '/etc/skel': {'bind': '/etc/skel', 'mode': 'ro'},
             '/data': {'bind': '/data', 'mode': 'rw'},
         }
@@ -431,7 +416,6 @@ def kill(docker_id):
 # ----------------------------- #
 #   Command line                #
 # ----------------------------- #
-#%%
 def parse_args():
     parser = argparse.ArgumentParser()
 
