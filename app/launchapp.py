@@ -1,6 +1,6 @@
 from datetime import datetime
 import os
-from notebook.auth import passwd
+from notebook.auth.security import passwd, passwd_check
 
 from . import launch
 from flask import Flask, flash, redirect, render_template, request, url_for
@@ -88,9 +88,7 @@ def create_session():
 def kill_session():
     # verify that the password they provided hashes to the same value as the
     # known pw hash
-    truehash = request.form['pwhash']
-    newhash = passwd(request.form['password'])
-    if truehash != newhash:
+    if not passwd_check(request.form['pwhash'], request.form['password']):
         flash(
             message=(
                 "unable to kill session - incorrect password. if this is"

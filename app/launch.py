@@ -241,7 +241,7 @@ def _find_open_port(start=8890, stop=9000):
     )
 
 
-def launch(username, password=None, imagetype=None, imagetag=None, num_gpus=0, **kwargs):
+def launch(username, password=None, imagetype=None, imagetag="latest", num_gpus=0, **kwargs):
     """launch a docker container for user `username` of type `imagetype`
 
     args:
@@ -249,7 +249,7 @@ def launch(username, password=None, imagetype=None, imagetag=None, num_gpus=0, *
         password (str): linux password
         imagetype (str): module-specific enumeration of available images
             (default: 'Python', which points to docker image `eri_dev`)
-        imagetag (str): the docker tag of the image to laucnh (default: 'latest')
+        imagetag (str): the docker tag of the image to launch (default: 'latest')
         num_gpus (int): number of gpus to assign to container
         kwargs (dict): all other keyword args are passed to the
             `client.containers.run` function
@@ -277,7 +277,7 @@ def launch(username, password=None, imagetype=None, imagetag=None, num_gpus=0, *
         return _error(msg)
 
     # validate linux username/password
-    # prevents users from launching containters as "astewart"
+    # prevents users from launching containers as "astewart"
     if not pam.authenticate(username, password):
         msg = ("Incorrect username or password. Or user was not configured properly "
                "Try username/password again. If error persists, contact admins")
