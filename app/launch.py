@@ -321,9 +321,10 @@ def launch(username, password=None, password_hash=None, imagetype=None,
         # hash the linux password and store as environment variable
         # used to connect local IDEs (e.g., atom, vscode) to remote jupyter sessions
         h = hashlib.new('sha256')
+        h.update(password.encode())
         _update_environment(
             imagedict, 'JUPYTERTOKEN',
-            password_hash or h.update(password.encode()).hexdigest()
+            password_hash or h.hexdigest()
         )
 
         # update ports dictionary for this instance if this is an auto
@@ -383,6 +384,9 @@ def launch(username, password=None, password_hash=None, imagetype=None,
 
     # use nvidia runtime to enable communication with the GPUs
     imagedict['runtime'] = 'nvidia'
+    # imagedict['command'] = 'bash utils/start-jupyter.sh'
+    # 
+    # print(imagedict)
 
     try:
         # look upon my kwargs hack and tremble. later dicts have priority

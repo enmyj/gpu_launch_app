@@ -24,3 +24,11 @@ Aegir:
     ports:
         8888: auto
         8787: auto
+Rapidsai:
+    image: rapidsai/rapidsai:{tag}
+    auto_remote: true
+    detach: true
+    ports:
+        8888: auto
+        8787: auto
+
